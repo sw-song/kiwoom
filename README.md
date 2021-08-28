@@ -2,7 +2,7 @@
 kiwoom api를 활용한 실시간 종목정보 조회 & 자동매매 
 
 ## 폴더 구조
-```
+```zsh
 .
 |--main.py
 |--kiwoom.py
