@@ -1,6 +1,23 @@
 # kiwoom
+kiwoom api를 활용한 실시간 종목정보 조회 & 자동매매 
 
+## 폴더 구조
+```
+.
+|--main.py
+|--kiwoom.py
+|  |--practice
+|     |--1~6 : PyQt 활용 - 로그인, 이벤트 처리, TR 요청
+|     |--7~8 : python에서 sqlite 기본 사용법
+|     |--9~11: class연습
+|     |--99  : pykiwoom 활용 - 로그인 및 일봉데이터 수집
+|  |--data
+|--.gitignore
+|--README.md
+```
+---
 
+## 에러 기록
 **window 관련 에러**
 1. MAC에서 생성한 REPO를 WINDOW에서 다룰 경우(LF/CRLF 에러)
 > 해결 방법 : 
@@ -23,22 +40,3 @@ app = QCoreApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
 ```
-
----
-### 1~6
-PyQt를 사용한 로그인, 이벤트 처리, TR 요청
-
-### 7~8
-python에서 sqlite 기본 사용법
-
-### 9~11
-PyQt를 사용하지 않고 종목 정보 수집 -> DB저장
-
-### 12
-class 연습
-
-### 13~
-..ing
-
-### 99
-pykiwoom 사용한 간단한 로그인 및 일봉데이터 수집
