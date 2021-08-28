@@ -23,3 +23,22 @@ app = QCoreApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
 ```
+
+---
+### 1~6
+PyQt를 사용한 로그인, 이벤트 처리, TR 요청
+
+### 7~8
+python에서 sqlite 기본 사용법
+
+### 9~11
+PyQt를 사용하지 않고 종목 정보 수집 -> DB저장
+
+### 12
+class 연습
+
+### 13~
+..ing
+
+### 99
+pykiwoom 사용한 간단한 로그인 및 일봉데이터 수집
