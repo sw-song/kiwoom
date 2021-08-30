@@ -5,7 +5,8 @@ kiwoom api를 활용한 실시간 종목정보 조회 & 자동매매
 ```
 .
 |--main.py
-|--kiwoom.py
+|  |--kiwoom
+|     |--api.py
 |  |--practice
 |     |--1~6 : PyQt 활용 - 로그인, 이벤트 처리, TR 요청
 |     |--7~8 : python에서 sqlite 기본 사용법
@@ -16,6 +17,11 @@ kiwoom api를 활용한 실시간 종목정보 조회 & 자동매매
 |--README.md
 ```
 ---
+
+## 주요 모듈&함수
+1. QAxWidget.setControl()
+- 파이썬이 .ocx 확장자를 컨트롤 할 수 있도록 함
+
 
 ## 에러 기록
 **window 관련 에러**
