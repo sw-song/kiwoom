@@ -1,15 +1,18 @@
 from PyQt5.QAxContainer import *
 from PyQt5.QtCore import *
 from config.errCode import *
+from config.slack import *
 
-class Kiwoom(QAxWidget):
+class GetAccountInfo(QAxWidget):
     def __init__(self):
         super().__init__() # == QAxWidget.__init__()
         print('api connected')
+        self.slack = Slack()
 
         #_____event loop______#
         self.login_event_loop = QEventLoop() # event loop start - for login
         self.detail_account_info_event_loop = QEventLoop()
+        self.calculator_event_loop = QEventLoop()
 
         #_____account_rel_____#
         self.account_stock_dict = {}
@@ -24,6 +27,7 @@ class Kiwoom(QAxWidget):
 
         #_____screen num______#
         self.screen_my_info="2000"
+        self.screen_calculation_stock='4000'
 
         #_____initial setting___#
         self.get_ocx_instance() # 1. api를 컨트롤하겠다.
@@ -87,37 +91,52 @@ class Kiwoom(QAxWidget):
                 code = self.dynamicCall('GetCommData(QString, QString, int, QString)',
                                         sTrCode, sRQName, i, '종목번호') # 보유 종목의 종목코드를 순서대로 불러온다
                 code = code.strip()[1:]
+            
                 code_name = self.dynamicCall('GetCommData(QString, QString, int, QString)',
                                             sTrCode, sRQName, i, '종목명')
+                code_name = code_name.strip()
+            
                 count_stock = self.dynamicCall('GetCommData(QString, QString, int, QString)',
                                             sTrCode, sRQName, i, '보유수량')
+                count_stock = int(count_stock)
+
                 buy_price = self.dynamicCall('GetCommData(QString, QString, int, QString)',
                                             sTrCode, sRQName, i, '매입가')
+                buy_price = int(buy_price)
+
                 profit_rate = self.dynamicCall('GetCommData(QString, QString, int, QString)',
-                                            sTrCode, sRQName, i, '수익률(%)'),
+                                            sTrCode, sRQName, i, '수익률(%)')
+                profit_rate = float(profit_rate)
+
                 current_price = self.dynamicCall('GetCommData(QString, QString, int, QString)',
-                                            sTrCode, sRQName, i, '현재가'),
+                                            sTrCode, sRQName, i, '현재가')
+                current_price = int(current_price)
+
                 total_buy_price = self.dynamicCall('GetCommData(QString, QString, int, QString)',
                                             sTrCode, sRQName, i, '매입금액')
+                total_buy_price = int(total_buy_price)
+                                    
                 count_can_sell_stock = self.dynamicCall('GetCommData(QString, QString, int, QString)',
                                             sTrCode, sRQName, i, '매매가능수량')
-                print('[보유종목정보(멀티)]\n종목번호: {}\n종목명: {}\n보유수량: {}\n매입가: {}\n수익률(%): {}\n현재가: {}\n매입금액: {}\n매매가능수량: {}')
+                count_can_sell_stock = int(count_can_sell_stock)
                 
-                
-                if self.not_signed_stock_dict[code]:
-                    pass
-                else:
-                    self.account_stock_dict[code]={}
-                    self.account_stock_dict[code].update({
-                                                      'name':code_name,
-                                                      'count':count_stock,
-                                                      'buy_price':buy_price,
-                                                      'profit_rate':profit_rate,
-                                                      'current_price':current_price,
-                                                      'total_buy_price':total_buy_price,
-                                                      'count_sell':count_can_sell_stock                
-                                                      })
-                    print('보유 종목 : {}({})'.format(code_name,code))
+                mystockMonit = '[보유종목정보(멀티)]\n종목번호: {} | 종목명: {} | 보유수량: {} | 매입가: {} | 수익률(%): {} | 현재가: {} | 매입금액: {} | 매매가능수량: {}'.\
+                    format(code, code_name, count_stock, buy_price, profit_rate, current_price, total_buy_price, count_can_sell_stock)
+                print(mystockMonit)
+                self.slack.notification(
+                    text=mystockMonit)
+            
+                self.account_stock_dict[code]={}
+                self.account_stock_dict[code].update({
+                                                    'name':code_name,
+                                                    'count':count_stock,
+                                                    'buy_price':buy_price,
+                                                    'profit_rate':profit_rate,
+                                                    'current_price':current_price,
+                                                    'total_buy_price':total_buy_price,
+                                                    'count_sell':count_can_sell_stock                
+                                                    }) 
+                print('보유 종목 : {} - {}'.format(code_name,code))
 
             if sPrevNext == '2':
                 print('현재 조회한 종목 수 : 20')
@@ -166,11 +185,11 @@ class Kiwoom(QAxWidget):
                         'not_signed_quantity':not_signed_quantity,
                         'ok_quantity':ok_quantity
                     })
-                    print('미체결 종목 : {}(주문번호:{})'.format(code_name, order_no))
-
+                    not_signed = '미체결 종목 : {}(주문번호:{})'.format(code_name, order_no)
+                    print(not_signed)
+                    self.slack.notification(text=not_signed)
         self.stop_screen_cancel(self.screen_my_info)
         self.detail_account_info_event_loop.exit()
-        
 
 
     ##_____request_login_____##
@@ -216,3 +235,4 @@ class Kiwoom(QAxWidget):
         self.dynamicCall('CommRqData(QString, QString, int, QString)',
                         '실시간미체결요청','opt10075', sPrevNext, self.screen_my_info)
         self.detail_account_info_event_loop.exec_()
+
