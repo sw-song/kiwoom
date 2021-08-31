@@ -2,11 +2,12 @@ from PyQt5.QAxContainer import *
 from PyQt5.QtCore import *
 from config.errCode import *
 from config.slack import *
+from PyQt5.QtTest import *
 
-class GetAccountInfo(QAxWidget):
+class Kiwoom(QAxWidget):
     def __init__(self):
         super().__init__() # == QAxWidget.__init__()
-        print('api connected')
+        print('class: GetAccountInfo -- api[kiwoom] connected')
         self.slack = Slack()
 
         #_____event loop______#
@@ -25,9 +26,11 @@ class GetAccountInfo(QAxWidget):
         self.total_profit_loss_money = 0 # 총평가손익금액
         self.total_profit_loss_rate = 0.0 # 총수익률(%)
 
+        #___for_calculate_stock__#
+        self.calcul_data=[]
         #_____screen num______#
         self.screen_my_info="2000"
-        self.screen_calculation_stock='4000'
+        self.screen_calculate_stock='4000'
 
         #_____initial setting___#
         self.get_ocx_instance() # 1. api를 컨트롤하겠다.
@@ -37,6 +40,41 @@ class GetAccountInfo(QAxWidget):
         self.detail_account_info() # 5. 예수금 요청 시그널
         self.detail_account_mystock() # 6. 계좌평가잔고내역을 불러온다.
         QTimer.singleShot(3500, self.not_concluded_account) # 7. 3.5초 뒤 미체결 종목 불러오기.
+        QTimer.singleShot(4000, self.calculator_fnc) #종목분석
+
+    def get_code_list_by_market(self, market_code):
+        '''
+        전체 종목 코드 반환
+        '''
+        code_list = self.dynamicCall('GetCodeListByMarket(QString)', market_code)
+        code_list = code_list.split(';')[:-1]
+        return code_list
+
+    def calculator_fnc(self):
+        '''
+        종목 분석
+        '''
+        code_list = self.get_code_list_by_market('10') #코스닥 전체 종목 조회
+        print('코스닥 종목 수 : {}'.format(len(code_list)))
+
+        for idx, code in enumerate(code_list):
+            self.dynamicCall('DisconnectRealData(QString)', self.screen_calculate_stock)
+            print('{} / {} : KOSDAQ Stock Code : {} is updating.. '.format(idx+1, len(code_list), code))
+            self.day_kiwoom_db(code=code)
+
+    def day_kiwoom_db(self, code=None, date=None, sPrevNext='0'):
+        
+        QTest.qWait(3600) # 이벤트는 살려두고, 실행 지연만 시킴
+        
+        self.dynamicCall('SetInputValue(QString, QString)', '종목코드', code)
+        self.dynamicCall('SetInputValue(QString, QString)', '수정주가구분', '1')
+
+        if date != None:
+            self.dynamicCall('SetInputValue(QString, QString)', '기준일자', date)
+        
+        self.dynamicCall('CommRqData(QString, QString, int, QString)',\
+             '주식일봉차트조회', 'opt10081', sPrevNext, self.screen_calculate_stock)
+        self.calculator_event_loop.exec_()
 
     ##___api controller____##
     def get_ocx_instance(self):
@@ -123,8 +161,8 @@ class GetAccountInfo(QAxWidget):
                 mystockMonit = '[보유종목정보(멀티)]\n종목번호: {} | 종목명: {} | 보유수량: {} | 매입가: {} | 수익률(%): {} | 현재가: {} | 매입금액: {} | 매매가능수량: {}'.\
                     format(code, code_name, count_stock, buy_price, profit_rate, current_price, total_buy_price, count_can_sell_stock)
                 print(mystockMonit)
-                self.slack.notification(
-                    text=mystockMonit)
+                # self.slack.notification(
+                #     text=mystockMonit)
             
                 self.account_stock_dict[code]={}
                 self.account_stock_dict[code].update({
@@ -187,10 +225,55 @@ class GetAccountInfo(QAxWidget):
                     })
                     not_signed = '미체결 종목 : {}(주문번호:{})'.format(code_name, order_no)
                     print(not_signed)
-                    self.slack.notification(text=not_signed)
+                    # self.slack.notification(text=not_signed)
+        
+        elif '주식일봉차트조회' == sRQName:
+            print('일봉 데이터 요청중..')
+            code = self.dynamicCall('GetCommData(QString, QString, int, QString)',\
+                sTrCode, sRQName, 0, '종목코드')
+            code = code.strip()
+            rows = self.dynamicCall('GetRepeatCnt(QString, QString)', sTrCode, sRQName)
+            print('데이터 >> {} , {}개'.format(code, rows))
+
+            # data = self.dynamicCall('GetCommDataEx(QString, QString)', sTrCode, sRQName) 
+            # [['', '현재가', '거래량', '거래대금', '날짜', '시가', '고가',' 저가],
+            #  ['', '현재가', '거래량', '거래대금', '날짜', '시가', '고가',' 저가],
+            #  ['', '현재가', '거래량', '거래대금', '날짜', '시가', '고가',' 저가],
+            #  ...] 
+            # 이하 동일 코드(for-loop 사용)
+            # self.slack.notification(text="['', '현재가', '거래량', '거래대금', '날짜', '시가', '고가',' 저가]")
+            for i in range(rows):
+                data = []
+                current_price = self.dynamicCall('GetCommData(QString, QString, int, QString)', sTrCode, sRQName, i, '현재가')
+                trade_count = self.dynamicCall('GetCommData(QString, QString, int, QString)', sTrCode, sRQName, i, '거래량')
+                trade_amount = self.dynamicCall('GetCommData(QString, QString, int, QString)', sTrCode, sRQName, i, '거래대금')
+                date = self.dynamicCall('GetCommData(QString, QString, int, QString)', sTrCode, sRQName, i, '일자')
+                start_price = self.dynamicCall('GetCommData(QString, QString, int, QString)', sTrCode, sRQName, i, '시가')
+                high_price = self.dynamicCall('GetCommData(QString, QString, int, QString)', sTrCode, sRQName, i, '고가')
+                low_price = self.dynamicCall('GetCommData(QString, QString, int, QString)', sTrCode, sRQName, i, '저가')
+
+                data.append("")
+                data.append(current_price.strip())
+                data.append(trade_count.strip())
+                data.append(trade_amount.strip())
+                data.append(date.strip())
+                data.append(start_price.strip())
+                data.append(high_price.strip())
+                data.append(low_price.strip())
+                data.append("")
+
+                self.calcul_data.append(data.copy())
+            self.slack.notification(text=str(self.calcul_data))
+            if sPrevNext == '2':
+                self.day_kiwoom_db(code=code, sPrevNext=sPrevNext)
+            else:
+                self.calculator_event_loop.exit()
+        
+
         self.stop_screen_cancel(self.screen_my_info)
         self.detail_account_info_event_loop.exit()
 
+    
 
     ##_____request_login_____##
     def signal_login_commConnect(self):
