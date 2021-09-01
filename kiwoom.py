@@ -1,9 +1,6 @@
 from PyQt5.QAxContainer import QAxWidget
 from PyQt5.QtCore import QEventLoop
 from config.slack import Slack
-import os
-
-
 
 class Kiwoom(QAxWidget):
     def __init__(self):
