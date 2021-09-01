@@ -55,6 +55,7 @@ class Kiwoom(QAxWidget):
         종목 분석
         '''
         code_list = self.get_code_list_by_market('10') #코스닥 전체 종목 조회
+        code_list = code_list[100:]
         print('코스닥 종목 수 : {}'.format(len(code_list)))
 
         for idx, code in enumerate(code_list):
@@ -263,10 +264,84 @@ class Kiwoom(QAxWidget):
                 data.append("")
 
                 self.calcul_data.append(data.copy())
-            self.slack.notification(text=str(self.calcul_data))
+
             if sPrevNext == '2':
                 self.day_kiwoom_db(code=code, sPrevNext=sPrevNext)
             else:
+                ## 120일 이평선 조건 | 예시
+                print('상장 기간(총 일수) : {}'.format(len(self.calcul_data)))
+                pass_success = False # 반복 조건
+                
+                # 이평선 그리기 위한 데이터가 충분한지 확인
+                if self.calcul_data == None or len(self.calcul_data) < 120:
+                    pass_success = False
+                else:
+                    # 데이터가 충분하다면(120일 이상)
+                    total_price = 0
+                    for value in self.calcul_data[:120]: # 리스트에는 최근일자부터 순서대로 들어가있음(최근 120일 순회)
+                        total_price += int(value[1]) # 현재가(종가) 누적 더하기
+                    moving_avg_price = total_price / 120
+
+                    bottom_stock_price = False
+                    check_price = None
+                    if int(self.calcul_data[0][7]) <= moving_avg_price and moving_avg_price <= int(self.calcul_data[0][6]):  # 가장최근일(오늘) 저가
+                        code_nm = self.dynamicCall('GetMasterCodeName(QString)', code)
+                        msg = '[매수신호] 오늘 {} ({}) 주가 - 120 이평선에 걸쳐있음'.format(code_nm, code)
+                        print(msg)
+                        self.slack.notification(text=msg)
+                        bottom_stock_price = True
+                        check_price = int(self.calcul_data[0][6]) #고가
+                    
+                    past_price = None
+                    # 과거 일봉 조회 (120일 이평선보다 밑에 있는지 확인)
+                    if bottom_stock_price == True:
+                        moving_avg_price_past = 0
+                        price_top_moving = False
+
+                        idx = 1
+                        while True:
+                            if len(self.calcul_data[idx:]) < 120: # 데이터 충분한지(120일) 계속 확인
+                                print('데이터 부족함(120일치 데이터 필요)')
+                                break
+                            else:
+                                total_price = 0
+                                for value in self.calcul_data[idx:idx+120]:
+                                    total_price += int(value[1]) # 과거 종가 누적 더하기
+                                moving_avg_price_past = total_price / 120
+
+                                if moving_avg_price_past <= int(self.calcul_data[idx][6]) and idx <= 20:
+                                    price_top_moving = False
+                                    break
+
+                                elif int(self.calcul_data[idx][7]) > moving_avg_price_past and idx > 20:
+                                    print('120일 이평선 위에 있는 일봉 확인')
+                                    price_top_moving = True
+                                    past_price = int(self.calcul_data[idx][7])
+                                    break
+                                idx += 1
+
+                            if price_top_moving == True:
+                                if moving_avg_price > moving_avg_price_past and check_price > past_price:
+                                    print('매수신호 포착')
+                                    pass_success = true
+                    if pass_success == True:
+                        print('포착된 종목 저장..')
+                        code_nm = self.dynamicCall('GetMasterCodeName(QString)', code)
+                        msg = '{}\t{}\t{}\n'.format(code, code_nm, str(self.calcul_data[0][1]))
+                        f = open('files/condition_stock.txt', 'a', encoding='utf8')
+                        f.write('%s\t%s\t%s\n' % (code, code_nm, str(self.calcul_data[0][1])))
+                        f.close()
+                        self.slack.notification(text=msg)
+
+                    elif pass_success == False:
+                        code_nm = self.dynamicCall('GetMasterCodeName(QString)', code)
+                        msg = '{} -{} | 조회 | 매수신호 포착되지 않음'.format(code, code_nm)
+                        print(msg)
+                        self.slack.notification(text=msg)
+                    self.calcul_data.clear()
+                    self.calculator_event_loop.exit()
+
+
                 self.calculator_event_loop.exit()
         
 

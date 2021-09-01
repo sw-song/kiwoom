@@ -2,7 +2,7 @@ import requests
 
 class Slack():
     def __init__(self):
-        self.token = '####'
+        self.token = '#'
         self.channel = '#bot_test'
 
     def notification(self, text=None):
