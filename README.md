@@ -4,15 +4,32 @@ kiwoom api를 활용한 실시간 종목정보 조회 & 자동매매
 ## 폴더 구조
 ```
 .
+# 동작코드
 |--main.py
+|--kiwoom.py
+|  |--config
+|     |--slack.py
+_____________________________________________________
+# 전체구성(테스트/연습용 코드 포함)
+|--main.py
+|--kiwoom.py
+|--test_main.py
 |  |--kiwoom
 |     |--api.py
 |  |--practice
 |     |--1~6 : PyQt 활용 - 로그인, 이벤트 처리, TR 요청
 |     |--7~8 : python에서 sqlite 기본 사용법
-|     |--9~11: class연습
+|     |--9~11: api 연결 db구축
+|     |--12  : class연습
 |     |--99  : pykiwoom 활용 - 로그인 및 일봉데이터 수집
 |  |--data
+|  |--config
+|     |--errCode.py
+|     |--kiwoomType.py
+|     |--slack.py
+|  |--files
+|     |--condition_stock.txt
+|
 |--.gitignore
 |--README.md
 ```
