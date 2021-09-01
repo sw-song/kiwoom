@@ -1,14 +1,18 @@
 from PyQt5.QAxContainer import *
 from PyQt5.QtCore import *
 from config.errCode import *
-from config.slack import *
+from config.kiwoomType import RealType
+from config.slack import Slack
 from PyQt5.QtTest import *
+import os
 
 class Kiwoom(QAxWidget):
     def __init__(self):
         super().__init__() # == QAxWidget.__init__()
         print('class: GetAccountInfo -- api[kiwoom] connected')
         self.slack = Slack()
+        self.realType = RealType()
+
 
         #_____event loop______#
         self.login_event_loop = QEventLoop() # event loop start - for login
@@ -18,6 +22,7 @@ class Kiwoom(QAxWidget):
         #_____account_rel_____#
         self.account_stock_dict = {}
         self.not_signed_stock_dict = {}
+        self.portfolio_stock_dict = {}
         self.account_num = None
         self.deposit = 0 # 예수금
         self.use_money = 0
@@ -31,16 +36,39 @@ class Kiwoom(QAxWidget):
         #_____screen num______#
         self.screen_my_info="2000"
         self.screen_calculate_stock='4000'
+        self.screen_real_stock='5000' # 종목별로 할당할 스크린 번호
+        self.screen_order_stock='6000' # 종목별로 할당할 '주문용' 스크린 번호
+        self.screen_start_stop_real = '1000'
 
         #_____initial setting___#
         self.get_ocx_instance() # 1. api를 컨트롤하겠다.
         self.event_slots() # 2. event slot들을 만들어주자.
+        self.real_event_slots() # 2+. 실시간 event slot 추가
         self.signal_login_commConnect() # 3. login을 요청한다.
         self.get_account_info() # 4. 계좌번호를 출력한다.
         self.detail_account_info() # 5. 예수금 요청 시그널
         self.detail_account_mystock() # 6. 계좌평가잔고내역을 불러온다.
-        QTimer.singleShot(3500, self.not_concluded_account) # 7. 3.5초 뒤 미체결 종목 불러오기.
-        QTimer.singleShot(4000, self.calculator_fnc) #종목분석
+        self.not_concluded_account() # 7. 미체결 종목 불러오기.
+        ##self.calculator_fnc() #종목분석
+        self.read_code() # 8. 저장된 종목 조회
+        self.screen_number_setting() # 9.스크린번호할당
+
+        self.dynamicCall('SetRealReg(QString, QString, QString, QString)',
+                    self.screen_start_stop_real, 
+                    '', 
+                    self.realType.REALTYPE['장시작시간']['장운영구분'],
+                    '0') # 장시작 시간 받을때만 0으로(최초) 나머지 실시간 조회는 모두 '1'로 지정
+
+        for code in self.portfolio_stock_dict.keys():
+            screen_num = self.portfolio_stock_dict[code]['스크린번호']
+            fids = self.realType.REALTYPE['주식체결']['체결시간']
+            self.dynamicCall('SetRealReg(QString, QString, QString, QString)',
+                    screen_num, 
+                    code, 
+                    fids,
+                    '1') # 실시간 종목조회 - '1'로 지정
+            print('CODE : {}, SCREEN : {}, FID : {}'.format(code, screen_num, fids))
+
 
     def get_code_list_by_market(self, market_code):
         '''
@@ -90,6 +118,9 @@ class Kiwoom(QAxWidget):
     def login_slot(self, err_code):
         print(errors(err_code)[1]) # 로그인 요청에 대한 응답이 오면 에러 코드 출력
         self.login_event_loop.exit() # 에러 코드 출력하고 로그인 이벤트 루프 종료.
+
+    def real_event_slots(self):
+        self.OnReceiveRealData.connect(self.realdata_slot)
 
     def trdata_slot(self, sScrNo, sRQName, sTrCode, sRecordName, sPrevNext):
         if sRQName == '예수금상세현황요청':
@@ -327,9 +358,9 @@ class Kiwoom(QAxWidget):
                     if pass_success == True:
                         print('포착된 종목 저장..')
                         code_nm = self.dynamicCall('GetMasterCodeName(QString)', code)
-                        msg = '{}\t{}\t{}\n'.format(code, code_nm, str(self.calcul_data[0][1]))
+                        msg = '{},{},{}\n'.format(code, code_nm, str(self.calcul_data[0][1]))
                         f = open('files/condition_stock.txt', 'a', encoding='utf8')
-                        f.write('%s\t%s\t%s\n' % (code, code_nm, str(self.calcul_data[0][1])))
+                        f.write('%s,%s,%s\n' % (code, code_nm, str(self.calcul_data[0][1])))
                         f.close()
                         self.slack.notification(text=msg)
 
@@ -394,3 +425,130 @@ class Kiwoom(QAxWidget):
                         '실시간미체결요청','opt10075', sPrevNext, self.screen_my_info)
         self.detail_account_info_event_loop.exec_()
 
+
+    def read_code(self):
+        file_path = 'files/condition_stock.txt'
+        if os.path.exists(file_path):
+            f = open(file_path, 'r', encoding='utf8')
+
+            lines = f.readlines()
+            for line in lines:
+                if line != '':
+                    ls = line.split(',')
+                    stock_code = ls[0]
+                    stock_name = ls[1]
+                    stock_price = abs(int(ls[2].split('\n')[0]))
+
+                    self.portfolio_stock_dict.update({
+                        stock_code: {'종목명':stock_name,'현재가':stock_price}
+                    })
+            f.close()
+
+            print(self.portfolio_stock_dict)
+
+    def screen_number_setting(self):
+        screen_overwrite = []
+
+        # 계좌평가잔고내역에 있는 종목들
+        for code in self.account_stock_dict.keys():
+            if code not in screen_overwrite:
+                screen_overwrite.append(code)
+
+        # 미체결에 있는 종목들
+        for order_number in self.not_signed_stock_dict.keys():
+            code = self.not_signed_stock_dict[order_number]['종목코드']
+
+            if code not in screen_overwrite:
+                screen_overwrite.append(code)
+
+        # 포트폴리오에 담겨있는 종목들
+        for code in self.portfolio_stock_dict.keys():
+            if code not in screen_overwrite:
+                screen_overwrite.append(code)
+
+        # 스크린번호 할당
+        cnt = 0 # 스크린번호 하나에 최대 100개 요청가능
+        for code in screen_overwrite:
+            real_screen = int(self.screen_real_stock)
+            order_screen = int(self.screen_order_stock)
+
+            if (cnt % 50) == 0: # 스크린번호 하나에 종목코드 최대 50개만 할당함 
+                real_screen += 1 # 5000 => 5001
+                self.screen_real_stock = str(real_screen)
+
+            if (cnt % 50) == 0:
+                order_screen += 1 # 6000 -> 6001
+                self.screen_order_stock = str(order_screen)
+            
+            if code in self.portfolio_stock_dict.keys():
+                self.portfolio_stock_dict[code].update({
+                    '스크린번호':str(self.screen_real_stock),
+                    '주문용스크린번호':str(self.screen_order_stock)
+                })
+            elif code not in self.portfolio_stock_dict.keys():
+                self.portfolio_stock_dict.update({
+                    code: {'스크린번호': str(self.screen_real_stock),
+                           '주문용스크린번호': str(self.screen_order_stock)}
+                        })
+            cnt += 1
+        print(self.portfolio_stock_dict)
+        
+
+    def realdata_slot(self, sCode, sRealType, sRealData):
+        
+        if sRealType == '장시작시간':
+            fid = self.realType.REALTYPE[sRealType]['장운영구분']
+            chk = self.dynamicCall('GetCommRealData(QString, int)',
+                            sCode, fid)
+
+            if chk == '0':
+                print('장 시작 전')
+            elif chk == '3':
+                print('장 시작')
+            elif chk == '2':
+                print('장 종료, 동시호가 전환')
+            elif chk == '4':
+                print('장 종료 (3:30)')            
+        
+        elif sRealType == '주식체결':
+            currtime = self.dynamicCall('GetCommRealData(QString,int)',
+                            sCode, self.realType.REALTYPE[sRealType]['체결시간'])
+            currprice = self.dynamicCall('GetCommRealData(QString,int)',
+                            sCode, self.realType.REALTYPE[sRealType]['현재가']) 
+            currprice = abs(int(currprice))
+
+            addprice = self.dynamicCall('GetCommRealData(QString,int)',
+                            sCode, self.realType.REALTYPE[sRealType]['전일대비'])
+            addprice = abs(int(addprice))
+
+            perprice = self.dynamicCall('GetCommRealData(QString,int)',
+                            sCode, self.realType.REALTYPE[sRealType]['등락율'])
+            perprice = float(perprice)
+            
+            bestsellprice = self.dynamicCall('GetCommRealData(QString,int)',
+                            sCode, self.realType.REALTYPE[sRealType]['(최우선)매도호가'])
+            bestsellprice = abs(int(bestsellprice))
+            
+            bestbuyprice = self.dynamicCall('GetCommRealData(QString,int)',
+                            sCode, self.realType.REALTYPE[sRealType]['(최우선)매수호가'])
+            bestbuyprice = abs(int(bestbuyprice))
+            
+            amount = self.dynamicCall('GetCommRealData(QString,int)',
+                            sCode, self.realType.REALTYPE[sRealType]['거래량'])
+            amount = abs(int(amount))
+
+
+            if sCode not in self.portfolio_stock_dict:
+                self.portfolio_stock_dict.update({sCode:{}})
+            
+            self.portfolio_stock_dict[sCode].update({
+                '체결시간':currtime,
+                '현재가':currprice,
+                '전일대비':addprice,
+                '등락율':perprice,
+                '(최우선)매도호가':bestsellprice,
+                '(최우선)매수호가':bestbuyprice,
+                '거래량':amount
+            })
+            print(self.portfolio_stock_dict[sCode])
+            self.slack.notification(text = self.portfolio_stock_dict[sCode])
