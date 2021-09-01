@@ -63,3 +63,11 @@ app = QCoreApplication.instance()
 if app is None:
     app = QApplication(sys.argv)
 ```
+
+## reference
+1. [퀀트투자를 위한 키움증권 API(파이썬버전), 조대표](https://wikidocs.net/book/1173)
+2. [파이썬으로 배우는 알고리즘 트레이딩, 조대표](https://wikidocs.net/book/110)
+3. [파이썬으로 배우는 알고리즘 트레이딩(소스코드), 조대표](https://github.com/pystockhub/book)
+4. [손가락 하나 까딱하지 않는 주식 거래 시스템 구축(위키북스), 장용준(프로그램동산)](https://wikibook.co.kr/pystock/)
+5. [(Youtube)24시간 주식매매 자동화 구축하기[open API+], 프로그램동산](https://www.youtube.com/watch?v=K9x3HDSdrjo&list=PLDtzZPtOGenaSknTbsb6x6L39V0VPz_rS)
+6. [[Python]키움API 조건검색 텔레그램 알림 만들기(1), 개인블로그(코딩으로 자아실현)](https://kminito.tistory.com/36)
