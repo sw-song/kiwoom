@@ -13,7 +13,6 @@ class Kiwoom(QAxWidget):
         self.slack = Slack()
         self.realType = RealType()
 
-
         #_____event loop______#
         self.login_event_loop = QEventLoop() # event loop start - for login
         self.detail_account_info_event_loop = QEventLoop()
@@ -33,6 +32,7 @@ class Kiwoom(QAxWidget):
 
         #___for_calculate_stock__#
         self.calcul_data=[]
+        
         #_____screen num______#
         self.screen_my_info="2000"
         self.screen_calculate_stock='4000'

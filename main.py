@@ -1,14 +1,14 @@
-from kiwoom.kiwoom import Kiwoom
-import sys # system - specific parameters and functions
-from PyQt5.QtWidgets import *
+from kiwoom import Kiwoom
+import sys
+from PyQt5.QtWidgets import QApplication
 
-class Main():
-    def __init__(self):
-        print('Main() class call')
-        
-        self.app = QApplication(sys.argv)
-        self.kiwoom = Kiwoom() 
-        self.app.exec_() # event loop(프로그램 종료하지 않고, 동시성 지원)
+
 
 if __name__ == "__main__":
-    Main()
+    print('==Program Start==')
+    app = QApplication(sys.argv)
+    kiwoom = Kiwoom()
+    kiwoom.comm_connect()
+    kiwoom.get_condition_load()
+    kiwoom.send_condition('0','결산이격도',0,0)
+    app.exec_()
